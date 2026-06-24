@@ -555,6 +555,21 @@ elif page == "📈 Evaluation Metrics":
     else:
         st.info("ℹ️ No results found. Train the model first: `python main.py`")
 
+    # Baseline Model Comparison
+    st.markdown("### 🏆 Baseline Model Comparison")
+    baseline_csv = PROJECT_ROOT / "outputs" / "results" / "baseline_comparison.csv"
+    baseline_img = PROJECT_ROOT / "outputs" / "figures" / "baseline_comparison.png"
+
+    if baseline_csv.exists() and baseline_img.exists():
+        col_table, col_chart = st.columns([1, 1.2])
+        with col_table:
+            st.markdown("Detailed evaluation scores compared against documented literature baselines:")
+            baseline_df = pd.read_csv(baseline_csv, index_col=0)
+            st.dataframe(baseline_df, use_container_width=True)
+            st.caption("*Training from scratch suffers heavily on the relatively small ~3.6k image sample size, demonstrating the importance of ImageNet transfer learning.*")
+        with col_chart:
+            st.image(str(baseline_img), caption="Model Comparison — ResNet-50 vs Baselines", use_container_width=True)
+    else:
         # Placeholder demo metrics
         st.markdown("### Expected Benchmark Metrics (APTOS 2019 literature)")
         bench_data = {
@@ -563,7 +578,7 @@ elif page == "📈 Evaluation Metrics":
             "AUC-ROC ↑":   ["~0.95–0.97",         "~0.92–0.94",        "~0.82–0.88"],
             "F1 Macro ↑":  ["~0.75–0.82",         "~0.68–0.74",        "~0.55–0.65"],
         }
-        st.dataframe(pd.DataFrame(bench_data), width='stretch', hide_index=True)
+        st.dataframe(pd.DataFrame(bench_data), use_container_width=True, hide_index=True)
 
     st.markdown("---")
 

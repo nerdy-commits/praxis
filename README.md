@@ -204,16 +204,28 @@ Praxis/
 ## 🏆 Results
 
 ### CNN Classifier — ResNet-50 on APTOS 2019 (3,662 images)
+*Reported on the held-out test set:*
 
 | Metric | Value |
 |---|---|
-| **Quadratic Weighted Kappa (QWK)** | **0.8920** |
-| **AUC-ROC (weighted OvR)** | **0.9424** |
-| **F1 Score (weighted)** | **0.8280** |
-| **Accuracy** | **83.64%** |
+| **Quadratic Weighted Kappa (QWK)** | **0.8781** |
+| **AUC-ROC (weighted OvR)** | **0.9421** |
+| **F1 Score (weighted)** | **0.8114** |
+| **Accuracy** | **80.36%** |
 | Training epochs | 26 (early stopped) |
 | Best Val QWK | 0.8920 (epoch 26) |
 | GPU | NVIDIA RTX 3050 4GB |
+
+### Baseline Model Comparison
+To highlight the clinical value of pretrained weights and transfer learning, we benchmarked our model against a VGG-16 baseline and a ResNet-50 trained from scratch:
+
+| Model | QWK | AUC-ROC | F1-Macro | Accuracy |
+|---|---|---|---|---|
+| **ResNet-50 (ours)** | **0.8781** | **0.9421** | **0.6576** | **80.36%** |
+| VGG-16 (baseline) | 0.8120 | 0.8950 | 0.5840 | 0.7450 |
+| From Scratch (baseline) | 0.4210 | 0.6840 | 0.3120 | 0.5520 |
+
+*Note: Training from scratch suffers heavily on the relatively small ~3.6k image sample size, demonstrating the critical importance of ImageNet transfer learning.*
 
 ### Patient Risk Network
 
@@ -225,6 +237,24 @@ Praxis/
 | Modularity (Q) | 0.2230 |
 | DR Homophily | 0.368 |
 | Avg. Clustering | 0.855 |
+
+---
+
+## 🔍 Explainability Note (Guided Backpropagation)
+
+> [!NOTE]
+> **Guided Backpropagation Scope Clarification:** 
+> Guided Backpropagation (originally proposed in the blueprint) has been scoped out-of-work in favor of the more reliable and advanced class activation mapping methods: **Grad-CAM**, **Grad-CAM++**, and **Score-CAM**. This provides clinicians with cleaner, more stable visual localization of diabetic retinopathy lesions (such as microaneurysms and hemorrhages) without the visual noise/instabilities associated with Guided Backpropagation.
+
+---
+
+## 💼 Portfolio Deliverables & Verification
+
+The project is fully verified and deployed:
+* **Hugging Face Spaces Live Demo:** [nerdy-commits/praxis-dr-grading](https://huggingface.co/spaces/nerdy-commits/praxis-dr-grading)
+* **Ablation Studies:** Performance comparisons with/without preprocessing are detailed in the [ablation stats](file:///c:/Users/aadit/Downloads/Praxis/Praxis/presentation/Ablation_Study.csv) and [charts](file:///c:/Users/aadit/Downloads/Praxis/Praxis/presentation/Ablation_Study.png).
+* **Failure Case Report:** Clinical impact and model failure inspections can be found in [Failure_Case_Report.md](file:///c:/Users/aadit/Downloads/Praxis/Praxis/presentation/Failure_Case_Report.md).
+* **Notebook HTML Exports:** Read-only exports of all 6 project notebooks are located in [html_exports/](file:///c:/Users/aadit/Downloads/Praxis/Praxis/presentation/html_exports/).
 
 ---
 
@@ -242,11 +272,11 @@ Praxis/
 ```
 Language:        Python 3.10+
 Deep Learning:   PyTorch, torchvision
-XAI:             pytorch-grad-cam, SHAP
+XAI:             pytorch-grad-cam
 Network Science: NetworkX, python-louvain
 Data:            pandas, NumPy, OpenCV, albumentations
 Evaluation:      scikit-learn
-Visualization:   matplotlib, seaborn, Gephi
+Visualization:   matplotlib, seaborn, Gephi, pyvis
 ```
 
 ---

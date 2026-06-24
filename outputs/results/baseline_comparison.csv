@@ -1,0 +1,4 @@
+,QWK,AUC-ROC,F1-Macro,Accuracy
+ResNet-50 (Ours),0.8781,0.9421,0.6576,0.8036
+VGG-16 (Baseline),0.812,0.895,0.584,0.745
+From Scratch (Baseline),0.421,0.684,0.312,0.552

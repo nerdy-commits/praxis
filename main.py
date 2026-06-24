@@ -113,7 +113,9 @@ def main():
         fc_hidden=model_cfg["fc_hidden"],
         dropout=model_cfg["dropout"],
         pretrained=model_cfg["pretrained"],
-        unfreeze_blocks=0 if model_cfg.get("freeze_strategy") == "partial" else model_cfg["unfreeze_blocks"],
+        unfreeze_blocks=0
+        if model_cfg.get("freeze_strategy") in {"full", "partial"}
+        else model_cfg["unfreeze_blocks"],
     ).to(device)
 
     checkpoint_path = Path(paths["model_save_dir"]) / "best_model.pth"

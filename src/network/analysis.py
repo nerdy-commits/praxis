@@ -269,8 +269,20 @@ class NetworkAnalyzer:
             )
             net.add_node(node, label=str(node), color=color, size=size, title=title)
 
-        for u, v, data in self.G.edges(data=True):
-            net.add_edge(u, v, value=data.get("weight", 0.5))
+        # Prune dense network edges to prevent browser timeout/crash during layout rendering
+        k = 4  # top-k strongest similarity connections per node
+        strong_edges = set()
+        for node in self.G.nodes():
+            edges = self.G.edges(node, data=True)
+            # Sort incident edges by weight descending and keep top k
+            sorted_edges = sorted(edges, key=lambda x: x[2].get("weight", 0.0), reverse=True)[:k]
+            for u, v, data in sorted_edges:
+                # Store edge in sorted order to avoid duplicates
+                edge = tuple(sorted([u, v]))
+                strong_edges.add((edge[0], edge[1], data.get("weight", 0.5)))
+
+        for u, v, w in strong_edges:
+            net.add_edge(u, v, value=w)
 
         net.save_graph(str(save_path))
         print(f"Network visualization saved: {save_path}")
