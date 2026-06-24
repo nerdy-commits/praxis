@@ -15,12 +15,15 @@ RUN useradd -m -u 1000 user
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH
 
+# Switch to the non-root user
+USER user
+
 # Set the working directory
 WORKDIR $HOME/app
 
 # Copy requirements.txt and install dependencies
 COPY --chown=user requirements.txt $HOME/app/requirements.txt
-RUN pip install --no-cache-dir --upgrade -r requirements.txt
+RUN pip install --no-cache-dir --user --upgrade -r requirements.txt
 
 # Copy the rest of the application files
 COPY --chown=user . $HOME/app
