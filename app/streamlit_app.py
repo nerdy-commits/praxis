@@ -6,7 +6,12 @@
 Run with:  streamlit run app/streamlit_app.py
 """
 
+import sys
 from pathlib import Path
+
+# Ensure the root Praxis directory is in the Python path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
 import numpy as np
 import pandas as pd

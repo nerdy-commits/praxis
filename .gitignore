@@ -66,3 +66,17 @@ outputs/network/*
 Thumbs.db
 wandb/
 mlruns/
+
+# =============================================================================
+# Hugging Face Spaces Deployment Overrides
+# =============================================================================
+# Keep specific assets and models needed for streamlit dashboard
+!data/metadata/clinical_metadata.csv
+!outputs/models/best_model.pth
+!outputs/results/test_metrics.csv
+!outputs/figures/*.png
+!outputs/gradcam/*.png
+!outputs/network/*
+outputs/models/ablation/
+
+

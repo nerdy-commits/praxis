@@ -1,3 +1,13 @@
+---
+title: Praxis - Explainable DR Grading
+emoji: 🔬
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+pinned: false
+license: mit
+---
+
 <div align="center">
 
 # 🔬 Praxis

@@ -8,9 +8,10 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 # Paths
-APTOS_ROOT = Path("data/raw/aptos2019")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+APTOS_ROOT = PROJECT_ROOT / "data" / "raw" / "aptos2019"
 TRAIN_CSV  = APTOS_ROOT / "train.csv"
-OUT_DIR    = Path("data/raw/aptos2019")
+OUT_DIR    = APTOS_ROOT
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 SEED = 42

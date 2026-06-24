@@ -98,17 +98,16 @@ print("\n[Data]")
 from src.utils.config import load_config
 cfg_paths = load_config(str(PROJECT_ROOT / "configs" / "default.yaml"))["paths"]
 
-aptos_root = Path("E:/New folder/aptos2019-blindness-detection")
-img_dir    = aptos_root / "train_images"
+aptos_root = PROJECT_ROOT / "data" / "raw"
 train_csv  = PROJECT_ROOT / cfg_paths["train_csv"]
 val_csv    = PROJECT_ROOT / cfg_paths["val_csv"]
 test_csv   = PROJECT_ROOT / cfg_paths["test_csv"]
 meta_csv   = PROJECT_ROOT / cfg_paths["metadata_csv"]
 
-n_imgs = len(list(img_dir.glob("*.png"))) if img_dir.exists() else 0
+n_imgs = len(list(aptos_root.rglob("*.png"))) if aptos_root.exists() else 0
 check(f"APTOS images  ({n_imgs} found, need >= 3000)",
       n_imgs >= 3000,
-      fix="Dataset should be at: E:/New folder/aptos2019-blindness-detection/train_images/")
+      fix="Dataset should be extracted to: data/raw/")
 check("train_split.csv", train_csv.exists(),
       fix="Run: python scripts/split_data.py")
 check("val_split.csv",   val_csv.exists(),
