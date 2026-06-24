@@ -17,8 +17,10 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # Change working directory to project root so all relative paths work in Docker
 os.chdir(PROJECT_ROOT)
 
+import cv2  # noqa: E402 — import after path setup
 import numpy as np
 import pandas as pd
+from PIL import Image
 import streamlit as st
 
 # ── Page Config ───────────────────────────────────────────────────────────────
@@ -101,6 +103,24 @@ def load_model():
         return model, device, ckpt
     except Exception as e:
         return None, None, str(e)
+
+
+# ── Cached data helpers ───────────────────────────────────────────────────────
+@st.cache_data
+def load_metadata():
+    """Load clinical metadata CSV once and cache it."""
+    if METADATA_CSV.exists():
+        return pd.read_csv(METADATA_CSV)
+    return None
+
+
+@st.cache_data
+def list_heatmap_files():
+    """List Grad-CAM heatmap files once and cache the list."""
+    gradcam_dir = OUTPUTS_DIR / "gradcam"
+    if gradcam_dir.exists():
+        return sorted([str(p) for p in gradcam_dir.glob("*.png")])
+    return []
 
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -218,10 +238,6 @@ elif page == "🖼️ DR Grading (CNN)":
     )
 
     if uploaded_file is not None:
-
-        import cv2
-        from PIL import Image
-
         col_img, col_pred = st.columns([1, 1])
 
         with col_img:
@@ -258,8 +274,9 @@ elif page == "🖼️ DR Grading (CNN)":
 
                     with torch.no_grad():
                         logits = model(tensor)
-                        probs  = torch.softmax(logits, dim=1).cpu().numpy()[0]
-                        pred   = int(probs.argmax())
+                        # Use .tolist() to avoid numpy binary compat issues
+                        probs = torch.softmax(logits, dim=1).cpu().tolist()[0]
+                        pred  = int(probs.index(max(probs)))
 
                     name, icon, color, badge = GRADE_INFO[pred]
                     st.markdown(f"<span class='{badge}'>{icon} {name}</span>",
@@ -358,7 +375,8 @@ elif page == "🔍 Explainability (Grad-CAM)":
     st.markdown("---")
 
     gradcam_dir = OUTPUTS_DIR / "gradcam"
-    heatmap_files = sorted(gradcam_dir.glob("*.png")) if gradcam_dir.exists() else []
+    heatmap_file_strs = list_heatmap_files()
+    heatmap_files = [Path(p) for p in heatmap_file_strs]
 
     if heatmap_files:
         # Filter controls
@@ -430,9 +448,9 @@ elif page == "🌐 Patient Risk Network":
     net_dir = OUTPUTS_DIR / "network"
 
     # Network stats (if metadata exists)
-    if METADATA_CSV.exists():
+    df = load_metadata()
+    if df is not None:
         try:
-            df = pd.read_csv(METADATA_CSV)
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Total Patients", len(df))
             if "dr_grade" in df.columns:
