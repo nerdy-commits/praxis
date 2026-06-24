@@ -200,6 +200,17 @@ elif page == "🖼️ DR Grading (CNN)":
     st.markdown("Upload a retinal fundus image to receive an automated DR severity grade.")
     st.markdown("---")
 
+    # Pre-warm model cache BEFORE the file uploader renders.
+    # This ensures the model is loaded once on page entry so that
+    # uploading an image doesn't trigger a slow first-run + layout shift.
+    _model_preload, _device_preload, _ckpt_preload = load_model()
+    if _model_preload is not None:
+        st.success("✅ Model loaded and ready for inference.")
+    elif isinstance(_ckpt_preload, str):
+        st.error(f"⚠️ Model load error: {_ckpt_preload}")
+    else:
+        st.info("ℹ️ No trained model checkpoint found. Running in demo mode.")
+
     uploaded_file = st.file_uploader(
         "Upload retinal fundus image (PNG / JPG)",
         type=["png", "jpg", "jpeg"],
@@ -207,6 +218,7 @@ elif page == "🖼️ DR Grading (CNN)":
     )
 
     if uploaded_file is not None:
+
         import cv2
         from PIL import Image
 

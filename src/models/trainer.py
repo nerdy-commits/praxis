@@ -20,7 +20,12 @@ from typing import Optional, Dict, List
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.amp import GradScaler, autocast
+# GradScaler: use torch.amp on 2.2+, fall back to torch.cuda.amp on 2.1.x
+try:
+    from torch.amp import GradScaler, autocast
+except ImportError:
+    from torch.cuda.amp import GradScaler, autocast
+
 from torch.utils.data import DataLoader
 from torch.optim import Adam, SGD
 from torch.optim.lr_scheduler import (
