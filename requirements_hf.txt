@@ -1,0 +1,42 @@
+# =============================================================================
+# Hugging Face Spaces Requirements
+# CPU-only deployment — torch/torchvision installed separately via Dockerfile
+# from the CPU wheel index to avoid downloading 2GB+ CUDA binaries.
+# =============================================================================
+
+# ── Explainability (XAI) ────────────────────────────────────────────────────
+grad-cam
+
+# ── Network Science ─────────────────────────────────────────────────────────
+networkx
+python-louvain
+
+# ── Data & Preprocessing ────────────────────────────────────────────────────
+numpy
+pandas
+opencv-python-headless
+albumentations
+Pillow
+
+# ── Machine Learning & Evaluation ───────────────────────────────────────────
+scikit-learn
+
+# ── Visualization ───────────────────────────────────────────────────────────
+matplotlib
+seaborn
+
+# ── Experiment Configuration ────────────────────────────────────────────────
+pyyaml
+
+# ── Streamlit Dashboard ──────────────────────────────────────────────────────
+streamlit
+plotly
+
+# ── Interactive Network Visualization ───────────────────────────────────────
+pyvis
+
+# ── Alternative Model Zoo ────────────────────────────────────────────────────
+timm
+
+# ── Statistical Functions ────────────────────────────────────────────────────
+scipy

@@ -19,14 +19,17 @@ USER user
 # Set the working directory
 WORKDIR $HOME/app
 
-# Copy requirements.txt
-COPY --chown=user requirements.txt $HOME/app/requirements.txt
+# Install CPU-only PyTorch and torchvision FIRST (avoids 2GB+ CUDA download)
+RUN pip install --no-cache-dir --user \
+    torch==2.1.0 \
+    torchvision==0.16.0 \
+    --index-url https://download.pytorch.org/whl/cpu
 
-# Install CPU-only PyTorch and torchvision first to prevent timeout and out-of-memory errors
-RUN pip install --no-cache-dir --user torch==2.1.0 torchvision==0.16.0 --index-url https://download.pytorch.org/whl/cpu
+# Copy the HF-specific requirements file (no torch, no strict pinning)
+COPY --chown=user requirements_hf.txt $HOME/app/requirements_hf.txt
 
-# Install the rest of the dependencies
-RUN pip install --no-cache-dir --user --upgrade -r requirements.txt
+# Install remaining dependencies
+RUN pip install --no-cache-dir --user -r requirements_hf.txt
 
 # Copy the rest of the application files
 COPY --chown=user . $HOME/app
