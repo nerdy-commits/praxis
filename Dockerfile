@@ -37,5 +37,9 @@ COPY --chown=user . $HOME/app
 # Expose Streamlit port (Hugging Face Spaces uses 7860)
 EXPOSE 7860
 
-# Run Streamlit
-CMD ["streamlit", "run", "app/streamlit_app.py", "--server.port", "7860", "--server.address", "0.0.0.0"]
+# Run Streamlit — disable CORS/XSRF for Hugging Face's reverse proxy
+CMD ["streamlit", "run", "app/streamlit_app.py", \
+     "--server.port", "7860", \
+     "--server.address", "0.0.0.0", \
+     "--server.enableCORS", "false", \
+     "--server.enableXsrfProtection", "false"]

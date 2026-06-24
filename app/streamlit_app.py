@@ -8,10 +8,14 @@ Run with:  streamlit run app/streamlit_app.py
 
 import sys
 from pathlib import Path
+import os
 
 # Ensure the root Praxis directory is in the Python path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+# Change working directory to project root so all relative paths work in Docker
+os.chdir(PROJECT_ROOT)
 
 import numpy as np
 import pandas as pd
@@ -67,9 +71,36 @@ GRADE_INFO = {
     3: ("Severe DR",       "🔴", "#e74c3c", "badge-3"),
     4: ("Proliferative DR","🟣", "#8e44ad", "badge-4"),
 }
-OUTPUTS_DIR = Path("outputs")
-METADATA_CSV = Path("data/metadata/clinical_metadata.csv")
-METRICS_CSV  = Path("outputs/results/test_metrics.csv")
+OUTPUTS_DIR = PROJECT_ROOT / "outputs"
+METADATA_CSV = PROJECT_ROOT / "data" / "metadata" / "clinical_metadata.csv"
+METRICS_CSV  = PROJECT_ROOT / "outputs" / "results" / "test_metrics.csv"
+
+
+# ── Cached model loader (prevents reloading on every page re-run) ─────────────
+@st.cache_resource
+def load_model():
+    """Load the trained ResNet-50 once and cache it for the session."""
+    checkpoint = OUTPUTS_DIR / "models" / "best_model.pth"
+    if not checkpoint.exists():
+        return None, None, None
+    try:
+        import torch
+        from src.utils.config import load_config, get_device
+        from src.models import build_resnet50
+        cfg    = load_config(str(PROJECT_ROOT / "configs" / "default.yaml"))
+        device = get_device()
+        model  = build_resnet50(
+            num_classes=5,
+            fc_hidden=cfg["model"]["fc_hidden"],
+            dropout=cfg["model"]["dropout"],
+            pretrained=False,
+        ).to(device)
+        ckpt = torch.load(checkpoint, map_location=device)
+        model.load_state_dict(ckpt["model_state_dict"])
+        model.eval()
+        return model, device, ckpt
+    except Exception as e:
+        return None, None, str(e)
 
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -189,27 +220,15 @@ elif page == "🖼️ DR Grading (CNN)":
         with col_pred:
             st.subheader("Prediction")
 
-            # Try to load model and run inference
-            checkpoint = OUTPUTS_DIR / "models" / "best_model.pth"
-            if checkpoint.exists():
+            # Load model (cached — only runs once per session)
+            model, device, ckpt = load_model()
+            if model is not None:
                 try:
                     import torch
-                    from src.utils.config import load_config, get_device
-                    from src.models import build_resnet50
+                    from src.utils.config import load_config
                     from src.data import get_val_transforms
-                    import albumentations as A
 
-                    cfg    = load_config("configs/default.yaml")
-                    device = get_device()
-                    model  = build_resnet50(
-                        num_classes=5,
-                        fc_hidden=cfg["model"]["fc_hidden"],
-                        dropout=cfg["model"]["dropout"],
-                        pretrained=False,
-                    ).to(device)
-                    ckpt = torch.load(checkpoint, map_location=device)
-                    model.load_state_dict(ckpt["model_state_dict"])
-                    model.eval()
+                    cfg = load_config(str(PROJECT_ROOT / "configs" / "default.yaml"))
 
                     # Preprocess
                     from src.data.preprocessing import preprocess_image
@@ -260,6 +279,8 @@ elif page == "🖼️ DR Grading (CNN)":
 
                 except Exception as e:
                     st.error(f"Inference error: {e}")
+            elif isinstance(ckpt, str):
+                st.error(f"Model load error: {ckpt}")
             else:
                 st.info("ℹ️ No trained model found. Run the pipeline first:\n\n```\npython main.py\n```")
                 # Show demo placeholder
