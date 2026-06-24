@@ -198,7 +198,7 @@ if page == "📊 Project Overview":
             "Count": [1805, 370, 999, 193, 295],
             "Share (%)": [49.3, 10.1, 27.3, 5.3, 8.1],
         }
-        st.dataframe(pd.DataFrame(class_data), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(class_data), width='stretch', hide_index=True)
     with c2:
         st.markdown("**Tech Stack**")
         st.markdown("""
@@ -243,7 +243,7 @@ elif page == "🖼️ DR Grading (CNN)":
         with col_img:
             st.subheader("Input Image")
             img_pil = Image.open(uploaded_file).convert("RGB")
-            st.image(img_pil, use_container_width=True)
+            st.image(img_pil, width='stretch')
 
         with col_pred:
             st.subheader("Prediction")
@@ -304,7 +304,7 @@ elif page == "🖼️ DR Grading (CNN)":
                         plot_bgcolor="rgba(0,0,0,0)",
                         font=dict(color="#e0e0ff"),
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
 
                 except Exception as e:
                     st.error(f"Inference error: {e}")
@@ -335,7 +335,7 @@ elif page == "🖼️ DR Grading (CNN)":
                     plot_bgcolor="rgba(0,0,0,0)",
                     font=dict(color="#e0e0ff"),
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
                 st.caption("*Demo mode — placeholder probabilities shown*")
 
     else:
@@ -409,7 +409,7 @@ elif page == "🔍 Explainability (Grad-CAM)":
                 cols = st.columns(n_cols)
                 for col, fpath in zip(cols, row_files):
                     with col:
-                        st.image(str(fpath), caption=fpath.stem, use_container_width=True)
+                        st.image(str(fpath), caption=fpath.stem, width='stretch')
         else:
             st.warning("No heatmaps match the selected filters.")
 
@@ -475,7 +475,7 @@ elif page == "🌐 Patient Risk Network":
         img_path = net_dir / "patient_network_community.png"
         if img_path.exists():
             st.image(str(img_path), caption="Patient network coloured by Louvain community",
-                     use_container_width=True)
+                     width='stretch')
         else:
             st.info("Run the pipeline to generate network visualisations.")
 
@@ -483,7 +483,7 @@ elif page == "🌐 Patient Risk Network":
         img_path = net_dir / "patient_network_drgrade.png"
         if img_path.exists():
             st.image(str(img_path), caption="Patient network coloured by predicted DR grade",
-                     use_container_width=True)
+                     width='stretch')
             # Legend
             cols = st.columns(5)
             for grade, col in enumerate(cols):
@@ -563,7 +563,7 @@ elif page == "📈 Evaluation Metrics":
             "AUC-ROC ↑":   ["~0.95–0.97",         "~0.92–0.94",        "~0.82–0.88"],
             "F1 Macro ↑":  ["~0.75–0.82",         "~0.68–0.74",        "~0.55–0.65"],
         }
-        st.dataframe(pd.DataFrame(bench_data), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(bench_data), width='stretch', hide_index=True)
 
     st.markdown("---")
 
@@ -576,13 +576,13 @@ elif page == "📈 Evaluation Metrics":
         tabs = st.tabs(["Confusion Matrix", "ROC Curves", "Training Curves"])
         if cm_path.exists():
             with tabs[0]:
-                st.image(str(cm_path), use_container_width=True)
+                st.image(str(cm_path), width='stretch')
         if roc_path.exists():
             with tabs[1]:
-                st.image(str(roc_path), use_container_width=True)
+                st.image(str(roc_path), width='stretch')
         if curves_path.exists():
             with tabs[2]:
-                st.image(str(curves_path), use_container_width=True)
+                st.image(str(curves_path), width='stretch')
     else:
         st.markdown("### Metric Definitions")
         st.markdown("""

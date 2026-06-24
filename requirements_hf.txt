@@ -4,7 +4,10 @@
 # from the CPU wheel index to avoid downloading 2GB+ CUDA binaries.
 # =============================================================================
 
-# ── Explainability (XAI) ────────────────────────────────────────────────────
+# ── NumPy — MUST be <2 because torch==2.1.0 was compiled against NumPy 1.x ──
+# NumPy 2.x breaks PyTorch's internal C extensions with binary ABI mismatch.
+numpy<2
+
 grad-cam
 
 # ── Network Science ─────────────────────────────────────────────────────────

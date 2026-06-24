@@ -21,11 +21,16 @@ USER user
 # Set the working directory
 WORKDIR $HOME/app
 
+# Install numpy<2 FIRST — torch 2.1.0 CPU is compiled against numpy 1.x.
+# If numpy 2.x gets installed, torch's C extensions crash at import time.
+RUN pip install --no-cache-dir --user "numpy<2"
+
 # Install CPU-only PyTorch and torchvision FIRST (avoids 2GB+ CUDA download)
 RUN pip install --no-cache-dir --user \
     torch==2.1.0 \
     torchvision==0.16.0 \
     --index-url https://download.pytorch.org/whl/cpu
+
 
 # Copy the HF-specific requirements file (no torch, no strict pinning)
 COPY --chown=user requirements_hf.txt $HOME/app/requirements_hf.txt
