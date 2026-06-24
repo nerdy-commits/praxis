@@ -1,9 +1,11 @@
 FROM python:3.10-slim
 
-# Install minimal system dependencies
+# Install minimal system dependencies (libgl1 is required by opencv)
 RUN apt-get update && apt-get install -y \
     curl \
     git \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up a new user named "user" with UID 1000 to comply with Hugging Face policies
