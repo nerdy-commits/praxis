@@ -123,6 +123,51 @@ def list_heatmap_files():
     return []
 
 
+@st.cache_data(show_spinner=False)
+def compute_graph_stats(gexf_path: str) -> dict:
+    """
+    Load patient graph and compute all network statistics.
+    Cached so heavy computation only runs once per session.
+    Uses approximate betweenness (k=50) to stay fast on dense graphs.
+    """
+    import networkx as nx
+    import community as community_louvain
+
+    G = nx.read_gexf(gexf_path)
+    degrees = dict(G.degree())
+    avg_degree = sum(degrees.values()) / max(len(degrees), 1)
+    density = nx.density(G)
+    avg_clustering = nx.average_clustering(G)
+
+    # Louvain communities
+    partition = community_louvain.best_partition(G, weight="weight")
+    modularity = community_louvain.modularity(partition, G, weight="weight")
+    n_clusters = len(set(partition.values()))
+
+    # Centrality — approximate betweenness for speed (k=50 pivot nodes)
+    bc = nx.betweenness_centrality(G, weight="weight", k=min(50, G.number_of_nodes()))
+    dc = nx.degree_centrality(G)
+    cc = nx.closeness_centrality(G)
+    pr = nx.pagerank(G, weight="weight", alpha=0.85)
+
+    return {
+        "n_nodes":       G.number_of_nodes(),
+        "n_edges":       G.number_of_edges(),
+        "density":       density,
+        "avg_degree":    avg_degree,
+        "avg_clustering": avg_clustering,
+        "modularity":    modularity,
+        "n_clusters":    n_clusters,
+        "partition":     partition,
+        "degrees":       degrees,
+        "bc":            bc,
+        "dc":            dc,
+        "cc":            cc,
+        "pr":            pr,
+        "node_attrs":    dict(G.nodes(data=True)),
+    }
+
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("## 🔬 Praxis")
@@ -571,38 +616,28 @@ elif page == "🌐 Patient Risk Network":
     _net_stats = {}  # shared across tabs
 
     if gexf_path.exists():
-        st.subheader("📊 Graph Statistics")
+        st.subheader("\U0001f4ca Graph Statistics")
         try:
-            import networkx as nx
-            import community as community_louvain
+            with st.spinner("Computing graph statistics\u2026 (first visit only)"):
+                _s = compute_graph_stats(str(gexf_path))
 
-            with st.spinner("Computing graph statistics…"):
-                _G = nx.read_gexf(str(gexf_path))
-                _degrees = dict(_G.degree())
-                _avg_degree = sum(_degrees.values()) / max(len(_degrees), 1)
-                _density = nx.density(_G)
-                _avg_clustering = nx.average_clustering(_G)
-
-                # Louvain communities
-                _partition = community_louvain.best_partition(_G, weight="weight")
-                _modularity = community_louvain.modularity(_partition, _G, weight="weight")
-                _n_clusters = len(set(_partition.values()))
-
-                # Centrality metrics
-                _bc = nx.betweenness_centrality(_G, weight="weight")
-                _dc = nx.degree_centrality(_G)
-                _cc = nx.closeness_centrality(_G)
-                _pr = nx.pagerank(_G, weight="weight", alpha=0.85)
-
-                _net_stats = {
-                    "G": _G, "partition": _partition,
-                    "bc": _bc, "dc": _dc, "cc": _cc, "pr": _pr,
-                }
+            _degrees     = _s["degrees"]
+            _avg_degree  = _s["avg_degree"]
+            _density     = _s["density"]
+            _avg_clustering = _s["avg_clustering"]
+            _partition   = _s["partition"]
+            _modularity  = _s["modularity"]
+            _n_clusters  = _s["n_clusters"]
+            _bc = _s["bc"]
+            _dc = _s["dc"]
+            _cc = _s["cc"]
+            _pr = _s["pr"]
+            _node_attrs  = _s["node_attrs"]
 
             # ── Top-level graph metric cards ──────────────────────────────
             m1, m2, m3, m4, m5, m6 = st.columns(6)
-            m1.metric("🔵 Nodes",        _G.number_of_nodes())
-            m2.metric("🔗 Edges",        _G.number_of_edges())
+            m1.metric("\U0001f535 Nodes",        _s["n_nodes"])
+            m2.metric("\U0001f517 Edges",        _s["n_edges"])
             m3.metric("📐 Density",      f"{_density:.4f}")
             m4.metric("🏘️ Clusters",     _n_clusters)
             m5.metric("⚡ Avg Degree",   f"{_avg_degree:.2f}")
@@ -629,8 +664,9 @@ elif page == "🌐 Patient Risk Network":
                 top_nodes = sorted(_bc.items(), key=lambda x: x[1], reverse=True)[:top_n]
                 cen_rows = []
                 for rank, (node, bc_val) in enumerate(top_nodes, 1):
-                    grade = int(_G.nodes[node].get("dr_grade", -1)) if "dr_grade" in _G.nodes[node] else -1
-                    grade_label = GRADE_INFO[grade][0] if 0 <= grade <= 4 else "—"
+                    ndata = _node_attrs.get(node, {})
+                    grade = int(ndata.get("dr_grade", -1)) if "dr_grade" in ndata else -1
+                    grade_label = GRADE_INFO[grade][0] if 0 <= grade <= 4 else "\u2014"
                     cen_rows.append({
                         "Rank":               rank,
                         "Patient ID":         node,
