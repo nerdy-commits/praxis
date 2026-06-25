@@ -140,10 +140,18 @@ class NetworkAnalyzer:
         n_nodes = self.G.number_of_nodes()
         try:
             if layout == "spring" and n_nodes > 300:
-                # spring_layout needs O(N²) working memory; use circular for large graphs
-                pos = nx.circular_layout(self.G)
+                # For large graphs, start from a good random seed then do a
+                # short Fruchterman-Reingold pass — cheap but looks far better
+                # than circular_layout which puts all nodes on a ring.
+                rng = np.random.default_rng(42)
+                pos_init = {n: rng.uniform(-1, 1, 2) for n in self.G.nodes()}
+                pos = nx.spring_layout(
+                    self.G, pos=pos_init, fixed=None,
+                    seed=42, k=1.2 / np.sqrt(n_nodes),
+                    iterations=25
+                )
             elif layout == "spring":
-                pos = nx.spring_layout(self.G, seed=42, k=0.5, iterations=30)
+                pos = nx.spring_layout(self.G, seed=42, k=0.5, iterations=50)
             elif layout == "kamada_kawai":
                 pos = nx.kamada_kawai_layout(self.G)
             elif layout == "circular":
@@ -151,12 +159,17 @@ class NetworkAnalyzer:
             else:
                 pos = nx.spring_layout(self.G, seed=42, k=0.5, iterations=30)
         except (MemoryError, Exception):
-            pos = nx.circular_layout(self.G)
+            # True last resort: random scatter is still better than a ring
+            rng = np.random.default_rng(42)
+            pos = {n: rng.uniform(-1, 1, 2) for n in self.G.nodes()}
 
-        # Node sizes based on centrality
+        # Node sizes based on centrality — scale down for large graphs
         centrality_vals = self.centrality.get(size_by, self.centrality["degree"])
         sizes = np.array([centrality_vals.get(n, 0.01) for n in self.G.nodes()])
-        sizes = 100 + sizes / (sizes.max() + 1e-8) * 500
+        # Smaller base + narrower range so nodes don't occlude each other at 500 nodes
+        max_size = 300 if n_nodes > 200 else 500
+        base_size = 20  if n_nodes > 200 else 60
+        sizes = base_size + sizes / (sizes.max() + 1e-8) * max_size
 
         # Node colors
         if color_by == "dr_grade" and self.dr_grades is not None:
@@ -165,8 +178,9 @@ class NetworkAnalyzer:
                 for n in self.G.nodes()
             ]
         else:
+            import matplotlib
             n_comm = len(set(self.partition.values()))
-            cmap = plt.cm.get_cmap("tab20", n_comm)
+            cmap = matplotlib.colormaps["tab20"].resampled(n_comm)
             colors = [cmap(self.partition.get(n, 0)) for n in self.G.nodes()]
 
         # Draw
@@ -174,15 +188,15 @@ class NetworkAnalyzer:
         ax.set_facecolor("#1a1a2e")
         fig.patch.set_facecolor("#1a1a2e")
 
-        # Edges
+        # Edges — slightly more visible than before
         nx.draw_networkx_edges(
-            self.G, pos, ax=ax, alpha=0.15, edge_color="#4a4a6a", width=0.5
+            self.G, pos, ax=ax, alpha=0.10, edge_color="#5a5a8a", width=0.4
         )
 
-        # Nodes
+        # Nodes — reduced alpha so overlapping nodes show through each other
         nx.draw_networkx_nodes(
             self.G, pos, ax=ax, node_size=sizes, node_color=colors,
-            edgecolors="#ffffff", linewidths=0.3, alpha=0.85
+            edgecolors="none", linewidths=0.0, alpha=0.75
         )
 
         # Legend

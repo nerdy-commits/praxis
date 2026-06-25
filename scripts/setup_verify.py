@@ -51,15 +51,22 @@ print("\n[PyTorch / CUDA]")
 try:
     import torch
     cuda_ok = torch.cuda.is_available()
+    cuda_functional = False
+    if cuda_ok:
+        try:
+            torch.randn(1, 1, device="cuda")
+            cuda_functional = True
+        except Exception:
+            pass
+
     check(f"PyTorch installed  (v{torch.__version__})", True)
     check(
-        f"CUDA available  (GPU: {torch.cuda.get_device_name(0) if cuda_ok else 'none'})",
-        cuda_ok,
-        fix="pip install torch==2.6.0+cu124 torchvision==0.21.0+cu124 "
-            "--index-url https://download.pytorch.org/whl/cu124",
+        f"CUDA available and functional  (GPU: {torch.cuda.get_device_name(0) if cuda_ok else 'none'})",
+        cuda_functional,
+        fix="PyTorch CUDA version is incompatible with your GPU architecture. The system will fall back to CPU.",
         warn_only=True,
     )
-    if cuda_ok:
+    if cuda_functional:
         vram_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
         check(f"VRAM >= 4 GB  (found {vram_gb:.1f} GB)", vram_gb >= 4,
               fix="Use batch_size=8 and mixed_precision=true in configs/default.yaml",
@@ -84,6 +91,8 @@ packages = [
     ("streamlit",       "streamlit"),
     ("plotly",          "plotly"),
     ("pyvis",           "pyvis"),
+    ("pytorch_grad_cam", "grad-cam"),
+    ("shap",            "shap"),
     ("timm",            "timm"),
 ]
 for mod, pkg in packages:

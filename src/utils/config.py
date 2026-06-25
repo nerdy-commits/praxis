@@ -43,8 +43,14 @@ def get_device():
     """Get the best available torch device."""
     import torch
     if torch.cuda.is_available():
-        device = torch.device("cuda")
-        print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+        try:
+            # Test CUDA capability (detect compatibility issues like "no kernel image is available")
+            test_tensor = torch.randn(1, 1, device="cuda")
+            device = torch.device("cuda")
+            print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+        except Exception as e:
+            print(f"CUDA is available but test operation failed (likely due to architecture mismatch). Falling back to CPU. Error: {e}")
+            device = torch.device("cpu")
     else:
         device = torch.device("cpu")
         print("Using CPU")

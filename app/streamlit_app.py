@@ -198,7 +198,7 @@ if page == "📊 Project Overview":
             "Count": [1805, 370, 999, 193, 295],
             "Share (%)": [49.3, 10.1, 27.3, 5.3, 8.1],
         }
-        st.dataframe(pd.DataFrame(class_data), width='stretch', hide_index=True)
+        st.dataframe(pd.DataFrame(class_data), use_container_width=True, hide_index=True)
     with c2:
         st.markdown("**Tech Stack**")
         st.markdown("""
@@ -217,7 +217,10 @@ if page == "📊 Project Overview":
 # ═══════════════════════════════════════════════════════════════════════════════
 elif page == "🖼️ DR Grading (CNN)":
     st.title("🖼️ DR Grading — CNN Inference")
-    st.markdown("Upload a retinal fundus image to receive an automated DR severity grade.")
+    st.markdown(
+        "Upload a retinal fundus image to receive an automated DR severity grade "
+        "with live **Grad-CAM** explainability."
+    )
     st.markdown("---")
 
     # Pre-warm model cache BEFORE the file uploader renders.
@@ -231,19 +234,35 @@ elif page == "🖼️ DR Grading (CNN)":
     else:
         st.info("ℹ️ No trained model checkpoint found. Running in demo mode.")
 
-    uploaded_file = st.file_uploader(
-        "Upload retinal fundus image (PNG / JPG)",
-        type=["png", "jpg", "jpeg"],
-        help="Images will be preprocessed with Ben Graham's method before inference.",
-    )
+    # ── Controls row ─────────────────────────────────────────────────────────
+    ctrl_col1, ctrl_col2 = st.columns([2, 1])
+    with ctrl_col1:
+        uploaded_file = st.file_uploader(
+            "Upload retinal fundus image (PNG / JPG)",
+            type=["png", "jpg", "jpeg"],
+            help="Images will be preprocessed with Ben Graham's method before inference.",
+        )
+    with ctrl_col2:
+        cam_method = st.selectbox(
+            "Grad-CAM Method",
+            options=["gradcam", "gradcam++", "scorecam"],
+            index=0,
+            help="gradcam++ is sharper; scorecam is slowest but most accurate.",
+        )
+        cam_alpha = st.slider(
+            "Heatmap opacity", min_value=0.2, max_value=0.8,
+            value=0.5, step=0.05,
+            help="Blend strength of the heatmap overlay.",
+        )
 
     if uploaded_file is not None:
         col_img, col_pred = st.columns([1, 1])
+        pred = None  # Initialize to avoid NameError if inference fails
 
         with col_img:
             st.subheader("Input Image")
             img_pil = Image.open(uploaded_file).convert("RGB")
-            st.image(img_pil, width='stretch')
+            st.image(img_pil, use_container_width=True)
 
         with col_pred:
             st.subheader("Prediction")
@@ -258,14 +277,13 @@ elif page == "🖼️ DR Grading (CNN)":
 
                     cfg = load_config(str(PROJECT_ROOT / "configs" / "default.yaml"))
 
-                    # Preprocess
+                    # Preprocess with Ben Graham
                     from src.data.preprocessing import preprocess_image
                     img_np = np.array(img_pil)
                     if cfg.get("preprocessing", {}).get("ben_graham", {}).get("enabled", True):
                         sigma = cfg.get("preprocessing", {}).get("ben_graham", {}).get("sigma", 10)
                         img_np = preprocess_image(img_np, 224, sigma)
                     else:
-                        import cv2
                         img_np = cv2.resize(img_np, (224, 224))
 
                     transform = get_val_transforms(224)
@@ -304,10 +322,11 @@ elif page == "🖼️ DR Grading (CNN)":
                         plot_bgcolor="rgba(0,0,0,0)",
                         font=dict(color="#e0e0ff"),
                     )
-                    st.plotly_chart(fig, width='stretch')
+                    st.plotly_chart(fig, use_container_width=True)
 
                 except Exception as e:
                     st.error(f"Inference error: {e}")
+
             elif isinstance(ckpt, str):
                 st.error(f"Model load error: {ckpt}")
             else:
@@ -335,8 +354,89 @@ elif page == "🖼️ DR Grading (CNN)":
                     plot_bgcolor="rgba(0,0,0,0)",
                     font=dict(color="#e0e0ff"),
                 )
-                st.plotly_chart(fig, width='stretch')
+                st.plotly_chart(fig, use_container_width=True)
                 st.caption("*Demo mode — placeholder probabilities shown*")
+
+        # ── Grad-CAM Heatmap (full-width below prediction columns) ───────────
+        if model is not None and pred is not None:
+            st.markdown("---")
+            st.subheader("🔍 Grad-CAM Explanation")
+            st.caption(
+                f"Method: **{cam_method}** · Target class: **{GRADE_INFO[pred][0]}** (Grade {pred})"
+            )
+
+            with st.spinner("Generating Grad-CAM heatmap…"):
+                try:
+                    from src.explainability.gradcam import GradCAMExplainer
+
+                    # Build explainer targeting the predicted class
+                    target_layer = model.backbone.layer4[-1]
+                    explainer = GradCAMExplainer(
+                        model=model,
+                        target_layer=target_layer,
+                        device=device,
+                        method=cam_method,
+                    )
+
+                    # Generate heatmap (the CAM library handles gradients internally)
+                    heatmap = explainer.generate_heatmap(
+                        tensor, target_class=pred
+                    )  # shape (H, W), values [0,1]
+
+                    # Prepare float RGB image [0,1] for overlay
+                    orig_float = img_np.astype(np.float32)
+                    if orig_float.max() > 1.0:
+                        orig_float = orig_float / 255.0
+
+                    h, w = orig_float.shape[:2]
+                    heatmap_resized = cv2.resize(heatmap, (w, h))
+                    overlay = explainer.overlay_heatmap(
+                        orig_float, heatmap_resized, alpha=cam_alpha
+                    )
+
+                    # Apply JET colormap to raw heatmap for display
+                    heatmap_uint8 = (heatmap_resized * 255).astype(np.uint8)
+                    heatmap_jet   = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
+                    heatmap_jet_rgb = cv2.cvtColor(heatmap_jet, cv2.COLOR_BGR2RGB)
+
+                    # Display 3 panels
+                    c1, c2, c3 = st.columns(3)
+                    with c1:
+                        st.markdown(
+                            "<div style='text-align:center; color:#a0a0c0; "
+                            "font-size:0.85rem; margin-bottom:4px'>📷 Preprocessed Input</div>",
+                            unsafe_allow_html=True,
+                        )
+                        st.image(
+                            (orig_float * 255).astype(np.uint8),
+                            use_container_width=True,
+                        )
+                    with c2:
+                        st.markdown(
+                            "<div style='text-align:center; color:#a0a0c0; "
+                            "font-size:0.85rem; margin-bottom:4px'>🌡️ Raw Heatmap (Jet)</div>",
+                            unsafe_allow_html=True,
+                        )
+                        st.image(heatmap_jet_rgb, use_container_width=True)
+                    with c3:
+                        st.markdown(
+                            "<div style='text-align:center; color:#a0a0c0; "
+                            "font-size:0.85rem; margin-bottom:4px'>🔥 Overlay</div>",
+                            unsafe_allow_html=True,
+                        )
+                        st.image(overlay, use_container_width=True)
+
+                    # Legend
+                    st.markdown(
+                        "<div style='font-size:0.8rem; color:#808090; margin-top:6px'>"
+                        "🔴 <b>Red/Yellow</b> = high activation (regions driving prediction) &nbsp;|&nbsp; "
+                        "🔵 <b>Blue</b> = low activation"
+                        "</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                except Exception as cam_err:
+                    st.warning(f"Grad-CAM could not be generated: {cam_err}")
 
     else:
         st.info("👆 Upload a retinal fundus image above to begin grading.")
@@ -409,7 +509,7 @@ elif page == "🔍 Explainability (Grad-CAM)":
                 cols = st.columns(n_cols)
                 for col, fpath in zip(cols, row_files):
                     with col:
-                        st.image(str(fpath), caption=fpath.stem, width='stretch')
+                        st.image(str(fpath), caption=fpath.stem, use_container_width=True)
         else:
             st.warning("No heatmaps match the selected filters.")
 
@@ -447,7 +547,7 @@ elif page == "🌐 Patient Risk Network":
 
     net_dir = OUTPUTS_DIR / "network"
 
-    # Network stats (if metadata exists)
+    # ── Clinical cohort summary metrics ──────────────────────────────────────
     df = load_metadata()
     if df is not None:
         try:
@@ -466,7 +566,142 @@ elif page == "🌐 Patient Risk Network":
 
     st.markdown("---")
 
-    # Visualization tabs
+    # ── Network Statistics Panel ──────────────────────────────────────────────
+    gexf_path = net_dir / "patient_graph.gexf"
+    _net_stats = {}  # shared across tabs
+
+    if gexf_path.exists():
+        st.subheader("📊 Graph Statistics")
+        try:
+            import networkx as nx
+            import community as community_louvain
+
+            with st.spinner("Computing graph statistics…"):
+                _G = nx.read_gexf(str(gexf_path))
+                _degrees = dict(_G.degree())
+                _avg_degree = sum(_degrees.values()) / max(len(_degrees), 1)
+                _density = nx.density(_G)
+                _avg_clustering = nx.average_clustering(_G)
+
+                # Louvain communities
+                _partition = community_louvain.best_partition(_G, weight="weight")
+                _modularity = community_louvain.modularity(_partition, _G, weight="weight")
+                _n_clusters = len(set(_partition.values()))
+
+                # Centrality metrics
+                _bc = nx.betweenness_centrality(_G, weight="weight")
+                _dc = nx.degree_centrality(_G)
+                _cc = nx.closeness_centrality(_G)
+                _pr = nx.pagerank(_G, weight="weight", alpha=0.85)
+
+                _net_stats = {
+                    "G": _G, "partition": _partition,
+                    "bc": _bc, "dc": _dc, "cc": _cc, "pr": _pr,
+                }
+
+            # ── Top-level graph metric cards ──────────────────────────────
+            m1, m2, m3, m4, m5, m6 = st.columns(6)
+            m1.metric("🔵 Nodes",        _G.number_of_nodes())
+            m2.metric("🔗 Edges",        _G.number_of_edges())
+            m3.metric("📐 Density",      f"{_density:.4f}")
+            m4.metric("🏘️ Clusters",     _n_clusters)
+            m5.metric("⚡ Avg Degree",   f"{_avg_degree:.2f}")
+            m6.metric("🔄 Avg Clustering", f"{_avg_clustering:.4f}")
+
+            # Modularity badge
+            mod_color = "#2ecc71" if _modularity > 0.3 else ("#f1c40f" if _modularity > 0.1 else "#e74c3c")
+            st.markdown(
+                f"<div style='background:#1a1a2e; border:1px solid {mod_color}; border-radius:8px;"
+                f" padding:10px 16px; display:inline-block; margin-top:8px;'>"
+                f"<span style='color:#a0a0c0; font-size:0.85rem;'>Modularity Q</span>"
+                f"&nbsp;&nbsp;<span style='color:{mod_color}; font-size:1.4rem; font-weight:700;'>"
+                f"{_modularity:.4f}</span>"
+                f"&nbsp;&nbsp;<span style='color:#606080; font-size:0.8rem;'>"
+                f"({'strong' if _modularity > 0.3 else 'moderate' if _modularity > 0.1 else 'weak'} community structure)"
+                f"</span></div>",
+                unsafe_allow_html=True,
+            )
+            st.markdown("")  # spacer
+
+            # ── Centrality leaderboard table ──────────────────────────────
+            with st.expander("🏆 Top-10 Centrality Leaderboard", expanded=True):
+                top_n = 10
+                top_nodes = sorted(_bc.items(), key=lambda x: x[1], reverse=True)[:top_n]
+                cen_rows = []
+                for rank, (node, bc_val) in enumerate(top_nodes, 1):
+                    grade = int(_G.nodes[node].get("dr_grade", -1)) if "dr_grade" in _G.nodes[node] else -1
+                    grade_label = GRADE_INFO[grade][0] if 0 <= grade <= 4 else "—"
+                    cen_rows.append({
+                        "Rank":               rank,
+                        "Patient ID":         node,
+                        "DR Grade":           grade_label,
+                        "Betweenness ↑":      round(bc_val, 5),
+                        "Degree Centrality ↑": round(_dc.get(node, 0), 5),
+                        "Closeness ↑":        round(_cc.get(node, 0), 5),
+                        "PageRank ↑":         round(_pr.get(node, 0), 5),
+                    })
+                st.dataframe(
+                    pd.DataFrame(cen_rows).set_index("Rank"),
+                    use_container_width=True,
+                )
+                st.caption(
+                    "**Betweenness** — bridge patients connecting different risk subgroups.  "
+                    "**Degree** — most connected (archetypal) patients.  "
+                    "**Closeness** — patients central to the overall network.  "
+                    "**PageRank** — patients most referenced by well-connected neighbours."
+                )
+
+            # ── Degree distribution mini-chart ────────────────────────────
+            with st.expander("📈 Degree Distribution", expanded=False):
+                import plotly.graph_objects as go
+                deg_vals = sorted(_degrees.values(), reverse=True)
+                fig_deg = go.Figure(go.Bar(
+                    x=list(range(len(deg_vals))),
+                    y=deg_vals,
+                    marker_color="#6c5ce7",
+                    marker_line_width=0,
+                ))
+                fig_deg.update_layout(
+                    xaxis_title="Patient (sorted by degree)",
+                    yaxis_title="Degree",
+                    height=260,
+                    margin=dict(l=0, r=0, t=10, b=30),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="#e0e0ff"),
+                )
+                st.plotly_chart(fig_deg, use_container_width=True)
+
+            # ── Cluster size distribution ─────────────────────────────────
+            with st.expander("🏘️ Cluster Size Distribution", expanded=False):
+                from collections import Counter
+                cluster_sizes = Counter(_partition.values())
+                sizes_sorted = sorted(cluster_sizes.items(), key=lambda x: x[1], reverse=True)
+                fig_cl = go.Figure(go.Bar(
+                    x=[f"C{cid}" for cid, _ in sizes_sorted],
+                    y=[sz for _, sz in sizes_sorted],
+                    marker_color="#00cec9",
+                    marker_line_width=0,
+                ))
+                fig_cl.update_layout(
+                    xaxis_title="Community",
+                    yaxis_title="Patients",
+                    height=260,
+                    margin=dict(l=0, r=0, t=10, b=30),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="#e0e0ff"),
+                )
+                st.plotly_chart(fig_cl, use_container_width=True)
+
+        except Exception as _gs_err:
+            st.warning(f"Could not compute graph statistics: {_gs_err}")
+    else:
+        st.info("ℹ️ No patient graph found. Run the full pipeline (`python main.py`) to generate it.")
+
+    st.markdown("---")
+
+    # ── Visualization tabs ────────────────────────────────────────────────────
     tab_community, tab_grade, tab_interactive = st.tabs(
         ["🎨 Community View", "🩺 DR Grade View", "🔗 Interactive (PyVis)"]
     )
@@ -475,7 +710,7 @@ elif page == "🌐 Patient Risk Network":
         img_path = net_dir / "patient_network_community.png"
         if img_path.exists():
             st.image(str(img_path), caption="Patient network coloured by Louvain community",
-                     width='stretch')
+                     use_container_width=True)
         else:
             st.info("Run the pipeline to generate network visualisations.")
 
@@ -483,8 +718,7 @@ elif page == "🌐 Patient Risk Network":
         img_path = net_dir / "patient_network_drgrade.png"
         if img_path.exists():
             st.image(str(img_path), caption="Patient network coloured by predicted DR grade",
-                     width='stretch')
-            # Legend
+                     use_container_width=True)
             cols = st.columns(5)
             for grade, col in enumerate(cols):
                 name, icon, color, _ = GRADE_INFO[grade]
@@ -591,13 +825,13 @@ elif page == "📈 Evaluation Metrics":
         tabs = st.tabs(["Confusion Matrix", "ROC Curves", "Training Curves"])
         if cm_path.exists():
             with tabs[0]:
-                st.image(str(cm_path), width='stretch')
+                st.image(str(cm_path), use_container_width=True)
         if roc_path.exists():
             with tabs[1]:
-                st.image(str(roc_path), width='stretch')
+                st.image(str(roc_path), use_container_width=True)
         if curves_path.exists():
             with tabs[2]:
-                st.image(str(curves_path), width='stretch')
+                st.image(str(curves_path), use_container_width=True)
     else:
         st.markdown("### Metric Definitions")
         st.markdown("""
